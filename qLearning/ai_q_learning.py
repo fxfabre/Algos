@@ -28,12 +28,16 @@ class Qlearning:
         self.gamma = GAMMA
         self.reward_move = REWARD_MOVE
 
-    def init(self):
+    def init(self, file_pattern):
         self.q_values = pandas.DataFrame(index=range(12), columns=self._moves_list)
-        self.q_values.fillna(0, inplace=True)
-        self.q_values.iloc[3, :] = [1 ] * 4
-        self.q_values.iloc[7, :] = [-1] * 4
+        if not self.load_states(file_pattern):
+            self.q_values.fillna(0, inplace=True)
+            self.init_end_states()
         self._logger.info('Init Q learning success : %s', self.q_values.shape)
+
+    def init_end_states(self):
+        self.q_values.iloc[3, :] = [ 1] * 4
+        self.q_values.iloc[7, :] = [-1] * 4
 
     def get_move(self, current_grid : GameGrid, current_state):
         available_moves = [move for move in self._moves_list if current_grid.canMove(move, current_state)]
@@ -64,16 +68,15 @@ class Qlearning:
             return random.choice(optimal_moves)
 
     def record_state(self, s, s_prime, move):
-        reward = self.reward_move
-
         a = self._moves_list.index(move)
         q_value_s = self.q_values.iloc[s, a]
         q_value_s_prime = self.q_values.iloc[s_prime, :].max()
 
         self._logger.debug("Update q values from state %s, value %s", s, self.q_values.iloc[s, a])
-        value_to_add = self.alpha * (reward + self.gamma * q_value_s_prime - q_value_s)
+        value_to_add = self.alpha * (self.reward_move + self.gamma * q_value_s_prime - q_value_s)
         self.q_values.iloc[s, a] += value_to_add
         self._logger.debug("To state %s, %s, value %s", s_prime, move, self.q_values.iloc[s, a])
+        return value_to_add
 
     def save_states(self, name):
         file_name = name + '_qValues.csv'
@@ -87,7 +90,9 @@ class Qlearning:
             self._logger.info("Read Q values file from %s", file_name)
             self.q_values = pandas.read_csv(file_name, sep='|', index_col=0)
             self._moves_list = self.q_values.columns.tolist()
-        assert current_shape == self.q_values.shape
+            assert current_shape == self.q_values.shape
+            return True
+        return False
 
     def state_values(self):
         v = np.zeros(12)
